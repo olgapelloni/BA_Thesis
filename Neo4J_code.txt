@@ -1,0 +1,4 @@
+﻿LOAD CSV FROM "file:///C:/result.csv" AS line
+MERGE (w1:Word1 {path: line[0], versenum: line[1], word: line[2] })
+CREATE (w2:Word2 {path: line[0], versenum: line[1], word: line[3] })
+CREATE (w1)-[:RHYME {position: line[4], exactness: line[5], degree_exactness: line[6], richness: line[7], dissonance: line[8]}]->(w2)
