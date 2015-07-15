@@ -10,12 +10,9 @@ from transcribe import Transcription
 
 # TO DO:
 # 1. Rich rhyme when it's after soft consonant +
-# 2. Degree of exactness and degree of richness
+# 2. Degree of exactness + and degree of richness
 # 3. Word class and word form
 # 4. Try out Neo4j +
-#Гаспаров-Скулачёва Статьи о лингвистике стиха (и там главы о рифме - пригодится)
-#Гаспаров Очерк истории русского стиха (там все параграфы и статистические таблицы о рифме)
-#Самойлов Книга о русской рифме (не уверен, что пригодится, но для общего развития нужно)
 
 class Rhymes:
     def __init__(self):
