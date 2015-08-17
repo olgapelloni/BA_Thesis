@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
 
-# First check in orfo dict (??)
-# Then rules (rules from http://fonetica.philol.msu.ru/
-# If word.lower() in list, then it must be lowered
-# PP in rhyme zone?
-# чн vs шн from dict
-# не учитываем долготу шипящих
+# Transform word into transcription
+# Rules from http://fonetica.philol.msu.ru/
 
 import pre_editing
 
@@ -45,15 +41,18 @@ class Transcription():
         self.hard_pe_words = [u'капелл']
         self.hard_fe_words = [u'галифе', u'кафе']
         self.pre_vowels = []
+        self.word_vowels = []
+        self.word_consonants = []
         self.stress = 0
         self.word = ''
         self.transcription = ''
 
-    def pre_editing(self):
+    def pre(self, flag):
         pre_editing.assign(self)
         pre_editing.yo_words_create(self)
         pre_editing.orfo_check(self) #-- becomes very slowly
-        pre_editing.yo_replace(self)
+        if flag == 1:
+            pre_editing.yo_replace(self)
         pre_editing.assimilation(self)
         pre_editing.cons_substitutions(self)
         pre_editing.jot_vowels_substitution(self)
@@ -70,27 +69,32 @@ class Transcription():
             pre_editing.post_reduction(self)
         self.transcription = self.transcription.lower()
         pre_editing.after_hard_hushing(self)
+        for i in range(len(self.transcription)-1):
+            if self.transcription[i] in self.pairing_cons and self.transcription[i+1] == u'ь':
+                 self.transcription = ''.join(self.transcription[:i+1] + u'\'' + self.transcription[i+1:])
 
     def consonants(self):
         pre_editing.voiceless(self)
         pre_editing.simplification(self)
 
-    def transform(self):
-        self.pre_editing()
+    def transform(self, flag):
+        self.pre(flag)
         self.vowels()
         self.consonants()
         if u'ё' in self.transcription:
             self.transcription = self.transcription.replace(u'ё', u'о')
+        for sound in self.transcription:
+            if sound in self.all_cons or sound == u'j':
+                self.word_consonants.append(sound)
+            if sound in self.all_vowels or sound in u'ьъ':
+                self.word_vowels.append(sound)
 
 
-# word1 = u'эфѝр'
-# word2 = u''
-#
+# word1 = u'сла̀ве'
 # t = Transcription()
 # t.word = word1
-# t.transform()
+# t.transform(1)
 # print t.word
 # print t.transcription
-
 
 
