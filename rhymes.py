@@ -8,7 +8,19 @@ import os
 import re
 from lxml import etree
 from transcribe import Transcription
+<<<<<<< HEAD
 from py2neo import Graph, Node, Relationship
+=======
+
+# Walk through each document
+# Inside document: go inside a verse; find rhymes inside; write down path-verse-word pair
+
+# TO DO:
+# 1. Rich rhyme when it's after soft consonant +
+# 2. Degree of exactness + and degree of richness
+# 3. Word class and word form
+# 4. Try out Neo4j +
+>>>>>>> origin/master
 
 class Rhymes:
     def __init__(self):
