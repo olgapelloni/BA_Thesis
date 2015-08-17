@@ -329,5 +329,4 @@ class Rhymes:
 
 rhymes = Rhymes()
 rhymes.root_name = '.\poetic_corpus_tillXX\poetic\\texts\\xx\\cvetaeva'
-rhymes.result_table = 'result.csv'
 rhymes.analyse()
