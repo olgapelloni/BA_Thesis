@@ -8,19 +8,8 @@ import os
 import re
 from lxml import etree
 from transcribe import Transcription
-<<<<<<< HEAD
-from py2neo import Graph, Node, Relationship
-=======
+from py2neo import authenticate, Graph, Node, Relationship
 
-# Walk through each document
-# Inside document: go inside a verse; find rhymes inside; write down path-verse-word pair
-
-# TO DO:
-# 1. Rich rhyme when it's after soft consonant +
-# 2. Degree of exactness + and degree of richness
-# 3. Word class and word form
-# 4. Try out Neo4j +
->>>>>>> origin/master
 
 class Rhymes:
     def __init__(self):
@@ -45,19 +34,29 @@ class Rhymes:
         if (trans1.transcription[stress1-1] == u'о' and trans2.transcription[stress2-1] == u'е'):
             trans2 = self.transcribe(cur_rhymes[j], 1)
         if (trans1.transcription[stress1-1] == u'е' and trans2.transcription[stress2-1] == u'е') and \
-                int(creation_date) > 1800:
+                int(creation_date) > 1827:
             trans1 = self.transcribe(cur_rhymes[i], 1)
             trans2 = self.transcribe(cur_rhymes[j], 1)
         return trans1, trans2
 
     # Open or closed
     def openness(self, trans1, trans2, properties, flag):
-        if (trans1.transcription[-1] in trans1.word_consonants or trans1.transcription[-1] == '\'') \
-                and (trans2.transcription[-1] in trans2.word_consonants or trans2.transcription[-1] == '\''):
+        if len(trans1.transcription) > 1:
+            num1 = -1
+        else:
+            num1 = 0
+
+        if len(trans2.transcription) > 1:
+            num2 = -1
+        else:
+            num2 = 0
+
+        if (trans1.transcription[num1] in trans1.word_consonants or trans1.transcription[num1] == '\'') \
+                and (trans2.transcription[num2] in trans2.word_consonants or trans2.transcription[num2] == '\''):
                 properties.append('closed')
 
-        elif (trans1.transcription[-1] in trans1.word_vowels and trans2.transcription[-1] in trans2.word_vowels[-1]) or \
-             (trans1.transcription[-1] == trans2.transcription[-1] == u'`'):
+        elif (trans1.transcription[num1] in trans1.word_vowels and trans2.transcription[num2] in trans2.word_vowels[num2]) or \
+             (trans1.transcription[num1] == trans2.transcription[num2] == u'`'):
                 properties.append('open')
         else:
             properties.append('-')
@@ -229,6 +228,7 @@ class Rhymes:
 
     # Create nodes and relationship
     def create_nodes(self, name, i, j, cur_rhymes, properties):
+
         if Node('Word', word=cur_rhymes[i].lower()) not in self.word_nodes:
                         word1 = Node('Word', word=cur_rhymes[i].lower())
                         self.word_nodes.append(word1)
@@ -267,11 +267,12 @@ class Rhymes:
         stress1 = trans1.transcription.index('`')
         stress2 = trans2.transcription.index('`')
 
-        flag = self.rhyme_analysis(i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date, properties, flag)[1]
+        if trans1 is not None and trans2 is not None:
+            flag = self.rhyme_analysis(i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date, properties, flag)[1]
 
-        if flag == 1:
-            self.print_record(name, i, j, cur_rhymes, properties)
-            self.create_nodes(name, i, j, cur_rhymes, properties)
+            if flag == 1:
+                self.print_record(name, i, j, cur_rhymes, properties)
+                self.create_nodes(name, i, j, cur_rhymes, properties)
 
     # Analyse all documents
     def analyse(self):
@@ -315,7 +316,7 @@ class Rhymes:
 
                                     # Word in a rhyme position
                                     if child.tail is not None:
-                                        word = child.tail.strip(u'.…,«»?)]}!:;,- "”')
+                                        word = child.tail.strip(u'.…,«»?()[]{}!:;,- "”')
                                         cur_rhymes.append(word)
 
                 for i in range(len(cur_rhymes)):
@@ -327,7 +328,7 @@ class Rhymes:
                 print str(round((done/float(all))*100, 4)) + '% of all files done'
                 done += 1
 
+authenticate("localhost:7474", "neo4j", "neo4j")
 rhymes = Rhymes()
-rhymes.root_name = '.\poetic_corpus_tillXX\poetic\\texts\\xx\\cvetaeva'
-rhymes.result_table = 'result.csv'
+rhymes.root_name = '.\poetic_corpus_tillXX\poetic\\texts\\xix\\pushkin'
 rhymes.analyse()
