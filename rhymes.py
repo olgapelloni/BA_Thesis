@@ -8,15 +8,16 @@ import os
 import re
 from lxml import etree
 from transcribe import Transcription
-from py2neo import authenticate, Graph, Node, Relationship
+from py2neo import authenticate, Graph
+
+import time
 
 
 class Rhymes:
     def __init__(self):
         self.graph = Graph()
         self.root_name = '' # Start folder
-        self.all_rhymes = [] # All records (rhymes with analysis)
-        self.word_nodes = [] # Unique word nodes in db
+        self.time = codecs.open('timing1.csv', 'w', 'utf-8')
 
     # Transform into transcription
     def transcribe(self, word, flag):
@@ -35,8 +36,11 @@ class Rhymes:
             trans2 = self.transcribe(cur_rhymes[j], 1)
         if (trans1.transcription[stress1-1] == u'е' and trans2.transcription[stress2-1] == u'е') and \
                 int(creation_date) > 1827:
+            start = time.time()
             trans1 = self.transcribe(cur_rhymes[i], 1)
             trans2 = self.transcribe(cur_rhymes[j], 1)
+            elapsed = (time.time() - start)
+            self.time.write(';;' + str(elapsed) + '\n')
         return trans1, trans2
 
     # Open or closed
@@ -205,6 +209,7 @@ class Rhymes:
         self.yo_substitution(i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date)
         flag = self.openness(trans1, trans2, properties, flag)[1]
         if trans1.transcription[stress1-1] == trans2.transcription[stress2-1]:
+
             # If stressed vowel is the last sound in the line:
             if stress1 == len(trans1.transcription) and stress2 == len(trans2.transcription):
                 flag = 1
@@ -222,44 +227,38 @@ class Rhymes:
         new_record += cur_rhymes[i].lower() + ',' + cur_rhymes[j].lower() + ','
         new_record += ','.join(properties)
         print new_record.replace(',', '\t')
-        new_record += '\n'
-        if new_record not in self.all_rhymes:
-            self.all_rhymes.append(new_record)
 
     # Create nodes and relationship
-    def create_nodes(self, name, i, j, cur_rhymes, properties):
+    def create_nodes(self, name, i, j, cur_rhymes, cur_meter, properties):
+        try:
+            properties.append(cur_meter[i])
+            properties.append(cur_meter[j])
+        except IndexError:
+            properties.append("")
+            properties.append("")
 
-        if Node('Word', word=cur_rhymes[i].lower()) not in self.word_nodes:
-                        word1 = Node('Word', word=cur_rhymes[i].lower())
-                        self.word_nodes.append(word1)
-        if Node('Word', word=cur_rhymes[j].lower()) not in self.word_nodes:
-            word2 = Node('Word', word=cur_rhymes[j].lower())
-            self.word_nodes.append(word2)
+        self.graph.cypher.execute("""
+        MERGE (word1:Word { word: '""" + cur_rhymes[i].lower() + """' })
+        MERGE (word2:Word { word: '""" + cur_rhymes[j].lower() + """' })
+        CREATE UNIQUE (word1)-[r:RHYME {path: '""" + name + """',
+                                        openness: '""" + properties[0] + """',
+                                        exactness: '""" + properties[1] + """',
+                                        degree_exactness: '""" + properties[2] + """',
+                                        richness: '""" + properties[3] + """',
+                                        depth: '""" + properties[4] + """',
+                                        assonance: '""" + properties[5] + """',
+                                        dissonance: '""" + properties[6] + """',
+                                        rhyming: '""" + properties[7] + """',
+                                        position: '""" + properties[8] + """',
+                                        meter1: '""" + properties[9] + """',
+                                        meter2: '""" + properties[10] + """'
+                                         }]->(word2)
+        """)
 
-        cur_node1 = None
-        cur_node2 = None
-
-        for node in self.word_nodes:
-            self.graph.create(node)
-            if node.properties['word'] == cur_rhymes[i].lower():
-                cur_node1 = node
-            if node.properties['word'] == cur_rhymes[j].lower():
-                cur_node2 = node
-        rhymed = Relationship(cur_node1, 'RHYME', cur_node2)
-        rhymed.properties['path'] = name
-        rhymed.properties['openness'] = properties[0]
-        rhymed.properties['exactness'] = properties[1]
-        rhymed.properties['degree_exactness'] = properties[2]
-        rhymed.properties['richness'] = properties[3]
-        rhymed.properties['depth'] = properties[4]
-        rhymed.properties['assonance'] = properties[5]
-        rhymed.properties['dissonance'] = properties[6]
-        rhymed.properties['rhyming'] = properties[7]
-        rhymed.properties['position'] = properties[8]
-        self.graph.create(rhymed)
+        self.graph.cypher.execute("CREATE INDEX ON :Word(word)")
 
     # Find rhymes
-    def find_rhymes(self, i, j, cur_rhymes, name, creation_date):
+    def find_rhymes(self, i, j, cur_rhymes, cur_meter, name, creation_date):
         flag = 0
         properties = []
         trans1 = self.transcribe(cur_rhymes[i], 0)
@@ -268,18 +267,34 @@ class Rhymes:
         stress2 = trans2.transcription.index('`')
 
         if trans1 is not None and trans2 is not None:
+            start = time.time()
             flag = self.rhyme_analysis(i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date, properties, flag)[1]
+            elapsed = (time.time() - start)
+            self.time.write(';' + str(elapsed) + ';\n')
 
             if flag == 1:
+                start = time.time()
+                self.create_nodes(name, i, j, cur_rhymes, cur_meter, properties)
+                elapsed = (time.time() - start)
+                self.time.write(str(elapsed) + ';;\n')
+
                 self.print_record(name, i, j, cur_rhymes, properties)
-                self.create_nodes(name, i, j, cur_rhymes, properties)
+
 
     # Analyse all documents
     def analyse(self):
         done = 1
+        self.time.write('create_nodes;rhyme_analysis;transcribe\n')
         all = sum([len(files) for r, d, files in os.walk(self.root_name)])
         print all, 'files to analyse'
+        exclude = frozenset(['barkov', 'bogdanovich', 'derz-001.xhtml', 'derz-002.xhtml', 'derz-003.xhtml'
+        , 'derz-004.xhtml', 'derz-005.xhtml', 'derz-006.xhtml', 'derz-007.xhtml', 'derz-008.xhtml', 'derz-009.xhtml'
+        , 'derz-010.xhtml', 'derz-011.xhtml', 'derz-012.xhtml', 'derz-013.xhtml', 'derz-014.xhtml', 'derz-015.xhtml'
+        , 'derz-016.xhtml', 'derz-017.xhtml', 'derz-018.xhtml', 'derz-019.xhtml', 'derz-020.xhtml', 'derz-021.xhtml',
+                             'derz-022.xhtml'])
         for root, dirs, files in os.walk(self.root_name):
+            dirs[:] = [d for d in dirs if d not in exclude]
+            files[:] = [f for f in files if f not in exclude]
             for name in files:
                 print os.path.abspath(os.path.join(root, name))
                 path = os.path.abspath(os.path.join(root, name))
@@ -295,6 +310,7 @@ class Rhymes:
                 # Parse the document
                 tree_root = etree.XML(text, etree.HTMLParser())
                 cur_rhymes = []
+                cur_meter = []
                 for d in tree_root.iter():
                     # Date
                     if creation_date == '':
@@ -311,24 +327,27 @@ class Rhymes:
                     # Collect all words in rhyme-zones
                     if d.tag == 'p' and 'class' in d.attrib and d.attrib['class'] == 'verse':
                         for child in d.iterchildren():
+                            if child.tag == 'line':
+                                cur_meter.append(child.attrib['meter'])
+
                             if child.tag == 'rhyme-zone':
                                 if child.tail is not None:
 
                                     # Word in a rhyme position
                                     if child.tail is not None:
-                                        word = child.tail.strip(u'.…,«»?()[]{}!:;,- "”')
+                                        word = child.tail.strip(u'.…,«»?()[]{}!:;,- "”0123456789 ')
                                         cur_rhymes.append(word)
 
                 for i in range(len(cur_rhymes)):
                     j = 1
                     while j <= 5 and i+j < len(cur_rhymes):
-                        self.find_rhymes(i, i+j, cur_rhymes, name, creation_date)
+                        self.find_rhymes(i, i+j, cur_rhymes, cur_meter, name, creation_date)
                         j += 1
 
-                print str(round((done/float(all))*100, 4)) + '% of all files done'
+                print str(round((done/float(all))*100, 4)) + '% of all files done (' + str(done) + ' out of ' + str(all) + ')'
                 done += 1
 
 authenticate("localhost:7474", "neo4j", "neo4j")
 rhymes = Rhymes()
-rhymes.root_name = '.\poetic_corpus_tillXX\poetic\\texts\\xix\\pushkin'
+rhymes.root_name = '.\poetic_corpus_tillXX\poetic\\texts\\xviii'
 rhymes.analyse()
