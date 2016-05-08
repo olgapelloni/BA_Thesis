@@ -1,30 +1,28 @@
 # -*- coding: utf-8 -*-
 
-# Find and analyze rhymes in the corpus
-# Build graph database
+# Find and analyze rhymes in the corpus RNC
+# Building graph database
 
 import codecs
 import os
 import re
 from lxml import etree
 from transcribe import Transcription
-from py2neo import authenticate, Graph
-
-import time
-
+from py2neo import Graph
+from py2neo import authenticate
 
 class Rhymes:
     def __init__(self):
         self.graph = Graph()
-        self.root_name = '' # Start folder
-        self.time = codecs.open('timing1.csv', 'w', 'utf-8')
+        self.root_name = ''  # Start folder
+        self.parsed = codecs.open('parsed.csv', 'w', 'utf-8')
 
     # Transform into transcription
     def transcribe(self, word, flag):
         t = Transcription()
         t.word = word
         t.transform(flag)
-        # flag = 1 -- look up the word in yo_list and replace if possible
+        # flag = 1 -- look up the word in yo_list and replace e with yo if possible
         # flag = 0 -- do nothing with e
         return t
 
@@ -35,12 +33,9 @@ class Rhymes:
         if (trans1.transcription[stress1-1] == u'о' and trans2.transcription[stress2-1] == u'е'):
             trans2 = self.transcribe(cur_rhymes[j], 1)
         if (trans1.transcription[stress1-1] == u'е' and trans2.transcription[stress2-1] == u'е') and \
-                int(creation_date) > 1827:
-            start = time.time()
+                int(creation_date) > 1828:
             trans1 = self.transcribe(cur_rhymes[i], 1)
             trans2 = self.transcribe(cur_rhymes[j], 1)
-            elapsed = (time.time() - start)
-            self.time.write(';;' + str(elapsed) + '\n')
         return trans1, trans2
 
     # Open or closed
@@ -129,7 +124,7 @@ class Rhymes:
             flag = 1
         return properties, flag
 
-    # Richness
+    # Rich or poor
     def richness(self, trans1, trans2, stress1, stress2, properties):
         if trans1.transcription[stress1-2] == trans2.transcription[stress2-2]:
             if trans1.transcription[stress1-2] != '\'':
@@ -153,7 +148,7 @@ class Rhymes:
             properties.append('-')
         return properties
 
-    # Depth
+    # Deep or not
     def depth(self, trans1, trans2, properties):
         if len(trans1.pre_vowels) > 0 and len(trans2.pre_vowels) > 0:
             if trans1.pre_vowels[-1] == trans2.pre_vowels[-1]:
@@ -170,7 +165,7 @@ class Rhymes:
             properties.append('-')
         return properties
 
-    # Rhyming
+    # Rhyming type
     def rhyming(self, i, j, properties):
         if j-i == 1:
             properties.append('paired')
@@ -182,7 +177,7 @@ class Rhymes:
             properties.append('-')
         return properties
 
-    # Position
+    # Position type
     def position(self, trans1, trans2, stress1, stress2, properties):
         vowels1_after = 0
         for sound in trans1.transcription[stress1+1:len(trans1.transcription)]:
@@ -208,9 +203,10 @@ class Rhymes:
     def rhyme_analysis(self, i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date, properties, flag):
         self.yo_substitution(i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date)
         flag = self.openness(trans1, trans2, properties, flag)[1]
+
         if trans1.transcription[stress1-1] == trans2.transcription[stress2-1]:
 
-            # If stressed vowel is the last sound in the line:
+            # If stressed vowel is the last sound in the line
             if stress1 == len(trans1.transcription) and stress2 == len(trans2.transcription):
                 flag = 1
             else:
@@ -221,22 +217,16 @@ class Rhymes:
         self.position(trans1, trans2, stress1, stress2, properties)
         return properties, flag
 
-    # Print record
+    # Print record while extracting and classifying
     def print_record(self, name, i, j, cur_rhymes, properties):
         new_record = name + ','
         new_record += cur_rhymes[i].lower() + ',' + cur_rhymes[j].lower() + ','
         new_record += ','.join(properties)
         print new_record.replace(',', '\t')
+        self.parsed.write(new_record + '\n')
 
     # Create nodes and relationship
-    def create_nodes(self, name, i, j, cur_rhymes, cur_meter, properties):
-        try:
-            properties.append(cur_meter[i])
-            properties.append(cur_meter[j])
-        except IndexError:
-            properties.append("")
-            properties.append("")
-
+    def create_nodes(self, name, i, j, cur_rhymes, properties):
         self.graph.cypher.execute("""
         MERGE (word1:Word { word: '""" + cur_rhymes[i].lower() + """' })
         MERGE (word2:Word { word: '""" + cur_rhymes[j].lower() + """' })
@@ -267,34 +257,35 @@ class Rhymes:
         stress2 = trans2.transcription.index('`')
 
         if trans1 is not None and trans2 is not None:
-            start = time.time()
-            flag = self.rhyme_analysis(i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date, properties, flag)[1]
-            elapsed = (time.time() - start)
-            self.time.write(';' + str(elapsed) + ';\n')
+            try:
+                flag = self.rhyme_analysis(i, j, cur_rhymes, trans1, trans2, stress1, stress2, creation_date, properties, flag)[1]
+            except:
+                pass
 
             if flag == 1:
-                start = time.time()
-                self.create_nodes(name, i, j, cur_rhymes, cur_meter, properties)
-                elapsed = (time.time() - start)
-                self.time.write(str(elapsed) + ';;\n')
-
+                try:
+                    properties.append(cur_meter[i])
+                    properties.append(cur_meter[j])
+                except IndexError:
+                    properties.append("")
+                    properties.append("")
+            #   Uncomment if needed to create new record into Neo4j DB
+            #    self.create_nodes(name, i, j, cur_rhymes, cur_meter, properties)
                 self.print_record(name, i, j, cur_rhymes, properties)
 
 
     # Analyse all documents
     def analyse(self):
         done = 1
-        self.time.write('create_nodes;rhyme_analysis;transcribe\n')
+        self.parsed.write('path,word1,word2,openness,exactness,degree_exactness,richness,depth,assonance,dissonance,rhyming,position,meter1,meter2\n')
         all = sum([len(files) for r, d, files in os.walk(self.root_name)])
         print all, 'files to analyse'
-        exclude = frozenset(['barkov', 'bogdanovich', 'derz-001.xhtml', 'derz-002.xhtml', 'derz-003.xhtml'
-        , 'derz-004.xhtml', 'derz-005.xhtml', 'derz-006.xhtml', 'derz-007.xhtml', 'derz-008.xhtml', 'derz-009.xhtml'
-        , 'derz-010.xhtml', 'derz-011.xhtml', 'derz-012.xhtml', 'derz-013.xhtml', 'derz-014.xhtml', 'derz-015.xhtml'
-        , 'derz-016.xhtml', 'derz-017.xhtml', 'derz-018.xhtml', 'derz-019.xhtml', 'derz-020.xhtml', 'derz-021.xhtml',
-                             'derz-022.xhtml'])
+
+        # Uncomment if needed to start parsing excluding already parsed files
+        # exclude = frozenset([])
         for root, dirs, files in os.walk(self.root_name):
-            dirs[:] = [d for d in dirs if d not in exclude]
-            files[:] = [f for f in files if f not in exclude]
+            # dirs[:] = [d for d in dirs if d not in exclude]
+            # files[:] = [f for f in files if f not in exclude]
             for name in files:
                 print os.path.abspath(os.path.join(root, name))
                 path = os.path.abspath(os.path.join(root, name))
@@ -312,7 +303,8 @@ class Rhymes:
                 cur_rhymes = []
                 cur_meter = []
                 for d in tree_root.iter():
-                    # Date
+
+                    # Find date
                     if creation_date == '':
                         if d.tag == 'meta' and 'name' in d.attrib and (d.attrib['name'] == 'created' or d.attrib['name'] == 'date'):
                             raw_date = d.attrib['content']
@@ -335,8 +327,9 @@ class Rhymes:
 
                                     # Word in a rhyme position
                                     if child.tail is not None:
-                                        word = child.tail.strip(u'.…,«»?()[]{}!:;,- "”0123456789 ')
-                                        cur_rhymes.append(word)
+                                        word = child.tail.strip(u'.…,“«»?()[]{}<>!:;,-_ "”0123456789 ')
+                                        if u'̀' in word and re.match(u"[-А-Яа-я̀]", word):
+                                            cur_rhymes.append(word)
 
                 for i in range(len(cur_rhymes)):
                     j = 1
@@ -347,7 +340,8 @@ class Rhymes:
                 print str(round((done/float(all))*100, 4)) + '% of all files done (' + str(done) + ' out of ' + str(all) + ')'
                 done += 1
 
-authenticate("localhost:7474", "neo4j", "neo4j")
+# Uncomment if needed to create new records into Neo4j
+#authenticate("localhost:7474", "neo4j", "neo4j")
 rhymes = Rhymes()
-rhymes.root_name = '.\poetic_corpus_tillXX\poetic\\texts\\xviii'
+rhymes.root_name = '.\\xx'
 rhymes.analyse()

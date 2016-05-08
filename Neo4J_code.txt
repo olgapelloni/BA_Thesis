@@ -1,5 +1,37 @@
-﻿MATCH (a)-[r]->(b)
-WHERE type(r) = 'RHYME' AND r.assonance = 'assonance'
-RETURN r
+﻿Examples of Cypher usage
 
-MATCH (a)-[r]->(b) WHERE a.word = 'шо̀рохи' RETURN a,b
+
+
+1. Load CSV with parsed rhymes (without using Python)
+
+LOAD CSV WITH HEADERS FROM "file:///xix_parsed/edges.csv" AS csv
+MERGE (source:Word { word: csv.source })
+MERGE (target:Word { word: csv.target })
+CREATE UNIQUE (source)-[r:RHYME {path: csv.path, openness: csv.openness, exactness: csv.exactness, degree_exactness: csv.degree_exactness,
+                                        richness: csv.richness,
+                                        depth: csv.depth,
+                                        assonance: csv.assonance,
+                                        dissonance: csv.dissonance,
+                                        rhyming: csv.rhyming,
+                                        position: csv.position,
+                                        meter1: csv.meter1,
+                                        meter2: csv.meter2
+                                         }]->(target)
+
+2. Amount of rhymes of a certain author and type
+
+MATCH (n)-[r:RHYME]->(m) 
+WHERE r.path =~ 'radish.*' AND r.exactness='inexact' AND r.position='male'
+RETURN count(r)
+
+3. Rhymes with certain endings (imperative plural)
+
+MATCH (n)-[r]->(m)
+WHERE n.word=~'.*[еиьй]̀?те' and m.word=~'.*[еиьй]̀?те'
+RETURN n, m
+
+4. Rhymes in specific meter (iambic tetrameter)
+
+MATCH (n)-[r]->(m)
+WHERE n.meter=~'Я4.*' and m.meter=~'Я4.*'
+RETURN n, m
