@@ -7,6 +7,8 @@ import re
 def assign(self):
     self.transcription = self.word.lower()
 
+# Assign vowel sounds
+
 def jot_vowels_substitution(self):
     if self.transcription[0] in self.jot_vowels.keys():
         self.transcription = ''.join(u'j' + self.jot_vowels[self.transcription[0]] + self.transcription[1:])
@@ -23,6 +25,8 @@ def jot_vowels_substitution(self):
                 self.transcription = ''.join(self.transcription[:i] + u'j' + self.jot_vowels[self.transcription[i]] + self.transcription[i+1:])
             if self.transcription[i-1] in u'ьъ':
                 self.transcription = ''.join(self.transcription[:i-1] + u'j' + self.jot_vowels[self.transcription[i]] + self.transcription[i+1:])
+
+# Consonants transcribing
 
 def cons_substitutions(self):
     self.transcription = self.transcription.replace(u'й', u'j')
