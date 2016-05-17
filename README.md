@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/22084/avonizos/BA_thesis.svg)](https://zenodo.org/badge/latestdoi/22084/avonizos/BA_thesis)
+
 The project is aimed to extract and classify rhymes from the poetic corpus of RNC with regard of further usage in Neo4j graph database. 
 Project consists of a Python package pre_editing and two programs -- transcribe.py and rhymes.py.
 
