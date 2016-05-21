@@ -20,18 +20,39 @@ CREATE UNIQUE (source)-[r:RHYME {path: csv.path, openness: csv.openness, exactne
 
 2. Amount of rhymes of a certain author and type
 
-MATCH (n)-[r:RHYME]->(m) 
+MATCH (n)-[r]->(m) 
 WHERE r.path =~ 'radish.*' AND r.exactness='inexact' AND r.position='male'
 RETURN count(r)
 
 3. Rhymes with certain endings (imperative plural)
 
 MATCH (n)-[r]->(m)
-WHERE n.word=~'.*[еиьй]̀?те' and m.word=~'.*[еиьй]̀?те'
+WHERE n.word=~'.*[иь]̀?те' and m.word='.*[иь]̀?те'
 RETURN n, m
 
 4. Rhymes in specific meter (iambic tetrameter)
 
 MATCH (n)-[r]->(m)
 WHERE n.meter=~'Я4.*' and m.meter=~'Я4.*'
+RETURN n, m
+
+5. Rhyme for a certain word
+
+MATCH (n)-[r]->(m) 
+WHERE n.word = 'шо̀рохи'
+RETURN n, m
+
+6. Amount of open approximate rhymes (приблизительные)
+
+MATCH (n)-[r]->(m)
+WHERE r.exactness='exact' AND 
+substring(n.word, length(n.word)-1, length(n.word)) =~'[уеыаоэяию]' AND 
+substring(m.word, length(m.word)-1, length(m.word)) =~ '[уеыаоэяию]' AND 
+substring(n.word, length(n.word)-1, length(n.word)) <> substring(m.word, length(m.word)-1, length(m.word))
+RETURN count(r)
+
+7. Iotated rhymes (йотированные)
+
+MATCH (n)-[r]->(m)
+WHERE (m.word =~ '.*й' AND n.word =~ '.*[уеыаоэяию]') OR (n.word =~ '.*й' AND m.word =~ '.*[уеыаоэяию]')
 RETURN n, m
